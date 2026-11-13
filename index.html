@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PokeNexus Spawn Search</title>
+  <style>
+    :root { color-scheme: dark; font: 16px/1.5 system-ui, sans-serif; background: #111827; color: #e5e7eb; }
+    body { max-width: 1100px; margin: auto; padding: 24px 16px; }
+    h1 { margin-bottom: 4px; }
+    p { color: #b8c5d6; }
+    label { display: block; font-weight: 600; margin-bottom: 8px; }
+    input { box-sizing: border-box; width: 100%; padding: 14px; border: 1px solid #718096; border-radius: 8px; background: #1f2937; color: inherit; font: inherit; }
+    input:focus-visible, button:focus-visible { outline: 3px solid #60a5fa; outline-offset: 3px; }
+    .table-scroll { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; text-align: left; }
+    caption { text-align: left; padding: 12px 0; font-weight: 600; }
+    th, td { padding: 10px 12px; border-bottom: 1px solid #374151; }
+    th { color: #93c5fd; }
+    td:first-child { text-transform: capitalize; }
+    button { display: block; margin: 20px auto; padding: 10px 24px; background: #2563eb; color: white; border: 0; border-radius: 6px; font: inherit; cursor: pointer; }
+    [hidden] { display: none; }
+  </style>
+</head>
+<body>
+  <h1>PokeNexus Spawn Search</h1>
+  <p>Find Pokémon and where they spawn. All data stays on your computer.</p>
+  <label for="query">Search Pokémon, location, or rarity</label>
+  <input id="query" type="search" placeholder="Try pikachu, Sinnoh, or golem sinnoh c" aria-describedby="hint" disabled>
+  <p id="hint">Combine partial Pokémon names, places, and a rarity code: c = Common, uc = Uncommon, r = Rare, vr = Very rare, er = Extremely rare. Add solo to show only solo spawns (for example, hippopotas er solo). Solo spawn means the only Pokémon in its rarity tier at that location and encounter method.</p>
+  <p id="status" role="status">Loading spawn data…</p>
+  <div class="table-scroll" role="region" aria-label="Spawn results" tabindex="0">
+    <table>
+      <caption>Spawn encounters</caption>
+      <thead><tr><th scope="col">Pokémon</th><th scope="col">Location</th><th scope="col">Method</th><th scope="col">Rarity</th><th scope="col">Levels</th><th scope="col">Solo spawn</th></tr></thead>
+      <tbody id="results"></tbody>
+    </table>
+  </div>
+  <button id="more" type="button" hidden>Show more</button>
+  <noscript><p>JavaScript is required to search the spawn data.</p></noscript>
+  <script type="module" src="app.mjs"></script>
+</body>
+</html>
