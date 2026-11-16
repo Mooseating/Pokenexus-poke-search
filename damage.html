@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PokeNexus Legendary-area OHKO Calculator</title>
+  <style>
+    :root { color-scheme: dark; font: 16px/1.5 system-ui, sans-serif; background: #111827; color: #e5e7eb; }
+    body { max-width: 1200px; margin: auto; padding: 24px 16px; }
+    a { color: #93c5fd; } p, small { color: #b8c5d6; }
+    label { display: block; font-weight: 600; margin: 12px 0 6px; }
+    textarea, select, button { box-sizing: border-box; font: inherit; border-radius: 6px; padding: 10px; }
+    textarea, select { width: 100%; border: 1px solid #718096; background: #1f2937; color: inherit; }
+    textarea { min-height: 240px; font-family: monospace; }
+    button { background: #2563eb; color: white; border: 0; cursor: pointer; margin: 12px 8px 0 0; }
+    button:disabled { opacity: .5; cursor: default; }
+    :focus-visible { outline: 3px solid #60a5fa; outline-offset: 3px; }
+    .columns { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    .table-scroll { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; text-align: left; }
+    th, td { padding: 10px; border-bottom: 1px solid #374151; } th { color: #93c5fd; }
+    #summary { font-weight: 600; color: #e5e7eb; }
+    @media (max-width: 700px) { .columns { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <a href="index.html">← Spawn search</a>
+  <h1>Legendary-area OHKO calculator</h1>
+  <p>Compare all supported damaging moves in your set using Gen 7 rules and legendary-area stat multipliers. Find the best average OHKO rate for the whole area.</p>
+  <p id="disabled-abilities">Loading PokeNexus ability rules…</p>
+  <form id="damage-form">
+    <div class="columns">
+      <section aria-label="Player set">
+        <label for="paste">Your Pokémon — one Showdown set</label>
+        <textarea id="paste" spellcheck="false" maxlength="10000">Gyarados @ Life Orb
+Ability: Intimidate
+EVs: 252 Atk / 4 SpD / 252 Spe
+Adamant Nature
+- Waterfall
+- Earthquake
+- Crunch
+- Ice Fang</textarea>
+        <button id="read" type="button" disabled>Read set</button>
+        <p id="player-info"></p>
+        <p><strong>Moves to compare</strong></p>
+        <p id="moves">Read your set to list the supported moves.</p>
+        <small>Flail and Reversal use 1 player HP; other moves use full player HP. Each move is tested separately, not used in a sequence.</small>
+        <ul id="warnings"></ul>
+      </section>
+      <section aria-label="Wild encounter assumptions">
+        <label for="area">Area</label><select id="area"></select>
+        <label for="method">Encounter method</label><select id="method"></select>
+        <label for="wild-nature">Wild nature</label><select id="wild-nature"><option value="Serious">Serious (neutral)</option></select>
+        <label for="abilities">Wild ability assumption</label>
+        <select id="abilities"><option value="default">Species' default Gen 7 ability</option><option value="worst">Worst-case legal Gen 7 ability (including hidden)</option></select>
+        <p><small>Ability probabilities weren't supplied. These are conditional scenarios, not an average over random abilities. Wild held items are assumed absent.</small></p>
+        <button id="calculate" type="submit" disabled>Compare all moves</button>
+        <button id="cancel" type="button" disabled>Cancel</button>
+      </section>
+    </div>
+  </form>
+  <p id="status" role="status">Loading calculator…</p>
+  <p id="summary" role="status"></p>
+  <section id="ranking-section" hidden aria-label="Move rankings">
+    <h2>Move rankings</h2>
+    <div class="table-scroll" role="region" aria-label="Average OHKO rates" tabindex="0">
+      <table>
+        <caption>One fixed move across the area; rarity is not weighted. Accuracy included, random crits excluded.</caption>
+        <thead><tr><th scope="col">Move</th><th scope="col">Player HP</th><th scope="col">Average OHKO / use</th><th scope="col">Modeled species</th><th scope="col">Calculation</th></tr></thead>
+        <tbody id="rankings"></tbody>
+      </table>
+    </div>
+  </section>
+  <section id="matchup-section" hidden aria-label="Pokémon OHKO coverage">
+    <h2>Which Pokémon can each move OHKO?</h2>
+    <label for="matchup-filter">Show Pokémon</label>
+    <select id="matchup-filter" disabled><option value="all">Calculate first</option></select>
+    <p id="matchup-count" role="status"></p>
+    <p><small>Chances include accuracy. “Possible” means above 0%, not guaranteed. In worst-ability mode,
+      ranges span modeled abilities—not their average. Exact 0% for every tested move is separate from unknown data
+      or zero observed in samples. All labels apply only to the selected assumptions, excluding random critical hits.</small></p>
+    <div class="table-scroll" role="region" aria-label="Per-Pokémon move chances" tabindex="0">
+      <table>
+        <caption>OHKO chance per move; Flail/Reversal use 1 player HP, other moves full HP.</caption>
+        <thead><tr id="matchup-head"></tr></thead>
+        <tbody id="matchup-results"></tbody>
+      </table>
+    </div>
+  </section>
+  <details>
+    <summary>Assumptions and limits</summary>
+    <ul>
+      <li>Wild Pokémon have 0 EVs and independent, uniformly random IVs from 0–31. Neutral nature is the default; you can select another nature.</li>
+      <li>Player: ×2.5 Attack/Special Attack, ×2 Defence/Special Defence/Speed. Wild: ×2 HP/Defence/Special Defence. Wild offensive ×1.33 multipliers are intentionally ignored.</li>
+      <li>Multipliers are applied after the normal stat formula and nature, rounding down. This ordering still needs calibration against PokeNexus.</li>
+      <li>Wild Pokémon start at full HP. The player is at 1 HP for Flail/Reversal and full HP for other moves. No prior setup/status/hazards or enemy attacks. Entry weather/terrain is modeled. Held Mega Stones/Primal Orbs assume the transformed player form.</li>
+      <li>Damage-roll OHKO chance is conditional on hitting. OHKO/use includes accuracy, but not random critical hits; forced critical moves still use their normal rules. This is not a survival or one-turn battle simulator.</li>
+      <li>Ordinary moves enumerate all 1,024 HP/defence IV pairs. Moves/abilities needing additional random stats use 512 reproducible full-IV samples, labeled as estimates.</li>
+      <li>Standard multi-hit moves are included. Unsupported moves or transformations are explicitly reported, not silently treated as guaranteed kills.</li>
+      <li>The area average counts each distinct species equally for the selected method. Rarity is informational only. This is not an encounter-frequency-weighted probability.</li>
+    </ul>
+  </details>
+  <details>
+    <summary>Detailed per-spawn results for all moves</summary>
+    <div class="table-scroll" role="region" aria-label="Damage results" tabindex="0">
+    <table>
+      <caption id="results-caption">All supported move results</caption>
+      <thead><tr><th scope="col">Move</th><th scope="col">Pokémon</th><th scope="col">Level</th><th scope="col">Rarity</th><th scope="col">Wild ability</th><th scope="col">Damage range</th><th scope="col">OHKO / hit</th><th scope="col">OHKO / use</th><th scope="col">IV calculation</th></tr></thead>
+      <tbody id="results"></tbody>
+    </table>
+    </div>
+  </details>
+  <p><small>Uses local Smogon/Showdown data and calculator code. <a href="THIRD_PARTY_LICENSES.md">Third-party licenses</a>.</small></p>
+  <noscript>JavaScript is required for this calculator.</noscript>
+  <script type="module" src="damage-app.mjs"></script>
+</body>
+</html>

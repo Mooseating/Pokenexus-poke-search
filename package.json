@@ -1,0 +1,17 @@
+{
+  "name": "pokenexus-spawn-search",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test *.test.mjs"
+  },
+  "dependencies": {
+    "@pkmn/sets": "6.0.0",
+    "@smogon/calc": "0.12.0"
+  },
+  "devDependencies": {
+    "@pkmn/sim": "0.11.0",
+    "esbuild": "0.25.12"
+  }
+}
