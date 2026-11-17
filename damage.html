@@ -40,6 +40,7 @@ Adamant Nature
 - Earthquake
 - Crunch
 - Ice Fang</textarea>
+        <p><small>Player IVs come from the pasted <code>IVs:</code> line. Only omitted stats default to 31; the random 0–31 IVs apply to wild Pokémon, not yours.</small></p>
         <button id="read" type="button" disabled>Read set</button>
         <p id="player-info"></p>
         <p><strong>Moves to compare</strong></p>
@@ -90,9 +91,11 @@ Adamant Nature
   <details>
     <summary>Assumptions and limits</summary>
     <ul>
+      <li>Player and wild Pokémon always use level 100, overriding dataset levels and any pasted Level line.</li>
       <li>Wild Pokémon have 0 EVs and independent, uniformly random IVs from 0–31. Neutral nature is the default; you can select another nature.</li>
-      <li>Player: ×2.5 Attack/Special Attack, ×2 Defence/Special Defence/Speed. Wild: ×2 HP/Defence/Special Defence. Wild offensive ×1.33 multipliers are intentionally ignored.</li>
-      <li>Multipliers are applied after the normal stat formula and nature, rounding down. This ordering still needs calibration against PokeNexus.</li>
+      <li>Ancient Dungeon: wild stats ×1.65 except Speed. New Moon/Full Moon islands and Stark Mountain Entrance/Volcano/Chamber: wild stats ×1.5 except Speed. These areas give the player no stat bonuses.</li>
+      <li>Other areas: player ×2.5 Attack/Special Attack, ×2 Defence/Special Defence/Speed; wild ×2 HP/Defence/Special Defence. Only in these other areas, wild offensive ×1.33 multipliers are intentionally ignored.</li>
+      <li>Multipliers are applied after the normal stat formula and nature, rounding up for wild Pokémon and down for the player. This ordering still needs calibration against PokeNexus.</li>
       <li>Wild Pokémon start at full HP. The player is at 1 HP for Flail/Reversal and full HP for other moves. No prior setup/status/hazards or enemy attacks. Entry weather/terrain is modeled. Held Mega Stones/Primal Orbs assume the transformed player form.</li>
       <li>Damage-roll OHKO chance is conditional on hitting. OHKO/use includes accuracy, but not random critical hits; forced critical moves still use their normal rules. This is not a survival or one-turn battle simulator.</li>
       <li>Ordinary moves enumerate all 1,024 HP/defence IV pairs. Moves/abilities needing additional random stats use 512 reproducible full-IV samples, labeled as estimates.</li>

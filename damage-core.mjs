@@ -20,10 +20,10 @@ const weather = { Drought: 'Sun', Drizzle: 'Rain', 'Sand Stream': 'Sand', 'Snow 
   'Desolate Land': 'Harsh Sunshine', 'Primordial Sea': 'Heavy Rain', 'Delta Stream': 'Strong Winds' };
 const terrain = { 'Electric Surge': 'Electric', 'Grassy Surge': 'Grassy', 'Misty Surge': 'Misty', 'Psychic Surge': 'Psychic' };
 
-export function boostedPokemon(name, options, multipliers) {
+export function boostedPokemon(name, options, multipliers, round = Math.floor) {
   function apply(pokemon, currentHP) {
     for (const stat of stats) {
-      pokemon.rawStats[stat] = Math.max(1, Math.floor(pokemon.rawStats[stat] * multipliers[stat]));
+      pokemon.rawStats[stat] = Math.max(1, round(pokemon.rawStats[stat] * multipliers[stat]));
       pokemon.stats[stat] = pokemon.rawStats[stat];
     }
     pokemon.originalCurHP = currentHP === undefined ? pokemon.rawStats.hp : Math.max(1, Math.min(currentHP, pokemon.rawStats.hp));
@@ -37,7 +37,7 @@ export function boostedPokemon(name, options, multipliers) {
   return apply(pokemon, options?.curHP ?? options?.originalCurHP);
 }
 
-export function preparePlayer(paste) {
+export function preparePlayer(paste, multipliers = playerMultipliers) {
   if (typeof paste !== 'string' || paste.length > 10000) throw new Error('Paste one Showdown set (under 10,000 characters).');
   const team = Teams.importTeam(paste)?.team;
   if (team?.length !== 1) throw new Error('Paste exactly one Pokémon set.');
@@ -56,8 +56,7 @@ export function preparePlayer(paste) {
   if (ability === 'Stance Change' && !species.name.includes('Blade')) {
     throw new Error('For Stance Change, paste Aegislash-Blade as the attacking form.');
   }
-  const level = set.level ?? 100;
-  if (!Number.isInteger(level) || level < 1 || level > 100) throw new Error('Player level must be 1–100.');
+  const level = 100;
   const nature = set.nature || 'Serious';
   if (!data.natures.includes(nature)) throw new Error(`Unknown nature: ${nature}`);
   const ivs = {}, evs = {};
@@ -86,9 +85,9 @@ export function preparePlayer(paste) {
     Return: { basePower: Math.max(1, Math.floor(happiness / 2.5)) },
     Frustration: { basePower: Math.max(1, Math.floor((255 - happiness) / 2.5)) },
   };
-  if (moves.includes('Foul Play')) warnings.push('Foul Play uses wild Attack; its ×1.33 area modifier is intentionally ignored as requested.');
+  if (moves.includes('Foul Play') && multipliers === playerMultipliers) warnings.push('Foul Play uses wild Attack; its ×1.33 area modifier is intentionally ignored as requested.');
   const pokemon = boostedPokemon(species.name, { level, item: item?.name, ability, nature, ivs, evs,
-    gender: set.gender, moves }, playerMultipliers);
+    gender: set.gender, moves }, multipliers);
   return { pokemon, moves: [...new Set(moves)], moveOverrides, warnings, abilityLabel: abilityLabel(ability) };
 }
 
@@ -173,7 +172,7 @@ function needsSampling(name, attacker, ability) {
     (terrain[attacker.ability] && terrain[ability] && terrain[attacker.ability] !== terrain[ability]);
 }
 
-function moveAgainst(attacker, species, level, nature, ability, name, overrides) {
+function moveAgainst(attacker, species, level, nature, ability, name, overrides, multipliers) {
   const move = new calc.Move(gen, name, { item: attacker.item, ability: attacker.ability, overrides });
   const defense = move.overrideDefensiveStat || (move.category === 'Physical' ? 'def' : 'spd');
   const sampled = needsSampling(name, attacker, ability);
@@ -184,7 +183,7 @@ function moveAgainst(attacker, species, level, nature, ability, name, overrides)
     const hpIVs = sampled ? [ivs.hp] : Array.from({ length: 32 }, (_, i) => i);
     let cached;
     for (const hpIV of hpIVs) {
-      const defender = boostedPokemon(species.name, { level, ability, nature, ivs: { ...ivs, hp: hpIV } }, wildMultipliers);
+      const defender = boostedPokemon(species.name, { level, ability, nature, ivs: { ...ivs, hp: hpIV } }, multipliers, Math.ceil);
       const hp = defender.maxHP();
       if (!cached || dependentHP || sampled) {
         const field = entryField(attacker, defender, index % 2);
@@ -217,7 +216,7 @@ function moveAgainst(attacker, species, level, nature, ability, name, overrides)
     low, high, mode: sampled ? `${samples} full-IV samples (estimate)` : 'Exact: 1,024 HP/defence IV pairs' };
 }
 
-export function calculateSpawn(player, row, { nature = 'Serious', abilities = 'default', move = player.moves[0] } = {}) {
+export function calculateSpawn(player, row, { nature = 'Serious', abilities = 'default', move = player.moves[0], multipliers = wildMultipliers } = {}) {
   if (!data.natures.includes(nature) || !['default', 'worst'].includes(abilities)) throw new Error('Choose a valid wild nature and ability assumption.');
   if (!Number.isInteger(row.level) || row.level < 1 || row.level > 100) throw new Error('Wild level must be 1–100.');
   const species = data.species[calc.toID(row.name)];
@@ -227,7 +226,7 @@ export function calculateSpawn(player, row, { nature = 'Serious', abilities = 'd
   if (!player.moves.includes(move)) throw new Error('Choose a supported move from the pasted set.');
   const attacker = player.pokemon.clone();
   if (oneHpMoves.has(move)) attacker.originalCurHP = 1;
-  const cases = candidates.map(ability => moveAgainst(attacker, species, row.level, nature, ability, move, player.moveOverrides[move]));
+  const cases = candidates.map(ability => moveAgainst(attacker, species, row.level, nature, ability, move, player.moveOverrides[move], multipliers));
   const result = cases.reduce((a, b) => a.useChance <= b.useChance ? a : b);
   return { ...row, name: species.name, ...result,
     maxUseChance: Math.max(...cases.map(c => c.useChance)), estimated: cases.some(c => c.mode.includes('estimate')) };
@@ -255,7 +254,7 @@ export function compareMoves(player, encounters, options = {}, onProgress = () =
     const rows = [];
     for (const [index, encounter] of encounters.entries()) {
       let row;
-      try { row = { ...calculateSpawn(player, encounter, { nature, abilities, move }), move }; }
+      try { row = { ...calculateSpawn(player, encounter, { nature, abilities, move, multipliers: options.multipliers }), move }; }
       catch (error) { row = { ...encounter, move, error: error.message }; }
       rows.push(row);
       matchups[index].name = row.name;

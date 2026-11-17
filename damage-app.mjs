@@ -66,13 +66,17 @@ paste.addEventListener('input', () => {
   element('player-info').textContent = '';
   controls();
 });
-read.addEventListener('click', () => {
+function readSet() {
   loadedPaste = '';
   element('player-info').textContent = '';
   element('warnings').replaceChildren();
   controls();
   status.textContent = 'Reading player set…';
-  worker.postMessage({ type: 'prepare', paste: paste.value });
+  worker.postMessage({ type: 'prepare', paste: paste.value, area: area.value });
+}
+read.addEventListener('click', readSet);
+area.addEventListener('change', () => {
+  if (ready && paste.value.trim()) readSet();
 });
 
 function appendRow(row) {
@@ -157,11 +161,12 @@ function startWorker() {
       ready = true;
       status.textContent = 'Ready. Read your Pokémon set, then compare all supported moves.';
     } else if (data.type === 'prepared') {
-      if (data.paste !== paste.value) return;
+      if (data.paste !== paste.value || data.area !== area.value) return;
       preparedMoves = data.moves;
       loadedPaste = paste.value;
       const p = data.player;
       element('player-info').textContent = `${p.name}, level ${p.level}, ${p.ability}, ${p.nature}. ` +
+        `Player IVs: ${Object.entries(p.ivs).map(([s, n]) => `${s.toUpperCase()} ${n}`).join(' / ')}. ` +
         `Area-scaled stats before item/ability combat modifiers: ${Object.entries(p.stats).map(([s, n]) => `${s.toUpperCase()} ${n}`).join(' / ')}.`;
       const list = element('warnings');
       list.replaceChildren();
@@ -194,7 +199,7 @@ function startWorker() {
       loadMatchups(data);
       status.textContent = 'Done. Each move was averaged separately across the same species; no per-species best-move substitution.';
     } else if (data.type === 'error') {
-      if (data.forType === 'prepare' && data.paste !== paste.value) return;
+      if (data.forType === 'prepare' && (data.paste !== paste.value || data.area !== area.value)) return;
       busy = false;
       status.textContent = `Error: ${data.error}`;
       summary.textContent = 'No completed move comparison was produced.';

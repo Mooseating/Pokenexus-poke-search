@@ -16,17 +16,28 @@ function player(species, ability, move, item = '') {
   return preparePlayer(`${species}${item ? ' @ ' + item : ''}\nAbility: ${ability}\nEVs: 252 Atk / 4 SpD / 252 Spe\nAdamant Nature\n- ${move}`);
 }
 
-test('all requested maps and methods have fixed levels and known Gen 7 species', () => {
-  assert.equal(areas.length, 13);
+test('all requested maps and methods use level 100 and known Gen 7 species', () => {
+  assert.equal(areas.length, 18);
   for (const area of areas) for (const method of area.methods) {
     const encounters = areaSpawns(spawns, area.name, method);
     assert.ok(encounters.length > 0);
-    for (const mon of encounters) assert.ok(metadata.species[calc.toID(mon.name)], mon.name);
+    for (const mon of encounters) {
+      assert.equal(mon.level, 100);
+      assert.ok(metadata.species[calc.toID(mon.name)], mon.name);
+    }
   }
-  assert.equal(areaSpawns(spawns, 'Ancient Dungeon — Land', 'Grass')[0].level, 90);
+  assert.equal(areaSpawns(spawns, 'Ancient Dungeon — Land', 'Grass')[0].level, 100);
   assert.equal(areaSpawns(spawns, "Mewtwo's Lair", 'Grass')[0].level, 100);
   assert.throws(() => areaSpawns(spawns, 'Ancient Dungeon — Land', 'Surfing'));
-  assert.throws(() => areaSpawns({ ...spawns, 'Sky Pillar 1F': { Levels: [99, 100] } }, 'Sky Pillar 1F', 'Grass'));
+  const ranged = { ...spawns, 'Sky Pillar 1F': { ...spawns['Sky Pillar 1F'], Levels: [99, 100] } };
+  assert.ok(areaSpawns(ranged, 'Sky Pillar 1F', 'Grass').every(mon => mon.level === 100));
+});
+
+test('player calculations use level 100 even when the pasted set specifies another level', () => {
+  const normal = preparePlayer(gyarados).pokemon;
+  const overridden = preparePlayer(gyarados + '\nLevel: 50').pokemon;
+  assert.equal(overridden.level, 100);
+  assert.deepEqual(overridden.rawStats, normal.rawStats);
 });
 
 test('stat calibration survives calculator clones and is not treated as stat stages', () => {
@@ -39,6 +50,55 @@ test('stat calibration survives calculator clones and is not treated as stat sta
   const result = calc.calculate(gen, mine, wild, new calc.Move(gen, 'Tackle'));
   assert.deepEqual(result.range(), [37, 44]); // floor(floor(42 * 40 * 590 / 472) / 50) + 2 = 44 before rolls.
   assert.equal(preparePlayer(gyarados).pokemon.rawStats.atk, 957); // floor(383 * 2.5), not round().
+});
+
+test('wild fractional bonuses round up after nature and survive clones', () => {
+  const options = { nature: 'Adamant' };
+  const base = new calc.Pokemon(gen, 'Mew', options);
+  for (const factor of [1.5, 1.65]) {
+    const multipliers = { hp: factor, atk: factor, def: factor, spa: factor, spd: factor, spe: 1 };
+    const wild = boostedPokemon('Mew', options, multipliers, Math.ceil);
+    for (const stat of Object.keys(multipliers)) {
+      assert.equal(wild.rawStats[stat], Math.ceil(base.rawStats[stat] * multipliers[stat]));
+    }
+    assert.equal(wild.rawStats.spe, base.rawStats.spe);
+    assert.deepEqual(wild.clone().clone().rawStats, wild.rawStats);
+    assert.equal(wild.clone().curHP(), wild.rawStats.hp);
+  }
+  assert.equal(preparePlayer(gyarados).pokemon.rawStats.atk, 957);
+});
+
+test('dungeon, Moon and Stark Mountain profiles leave player stats and wild Speed unboosted', () => {
+  for (const [name, factor] of [['Ancient Dungeon — Land', 1.65], ['New Moon Island', 1.5], ['Full Moon Island', 1.5],
+    ['Stark Mountain E', 1.5], ['Stark Mountain V', 1.5], ['Stark Mountain C', 1.5]]) {
+    const { modifiers } = areas.find(area => area.name === name);
+    assert.deepEqual(modifiers.player, { hp: 1, atk: 1, def: 1, spa: 1, spd: 1, spe: 1 });
+    assert.deepEqual(modifiers.wild, { hp: factor, atk: factor, def: factor, spa: factor, spd: factor, spe: 1 });
+    const parsed = preparePlayer(gyarados, modifiers.player);
+    const base = new calc.Pokemon(gen, 'Gyarados', { nature: 'Adamant', evs: { atk: 252, spd: 4, spe: 252 } });
+    assert.deepEqual(parsed.pokemon.rawStats, base.rawStats);
+  }
+  assert.equal(areas.find(area => area.name === "Mewtwo's Lair").modifiers, undefined);
+});
+
+test('fractional wild profiles reach move comparisons with rounded-up stats', () => {
+  const mine = preparePlayer('Gyarados\nAdamant Nature\n- Waterfall', { hp: 1, atk: 1, def: 1, spa: 1, spd: 1, spe: 1 });
+  for (const factor of [1.5, 1.65]) {
+    const multipliers = { hp: factor, atk: factor, def: factor, spa: factor, spd: factor, spe: 1 };
+    let low = Infinity, high = 0, chance = 0;
+    for (let hp = 0; hp < 32; hp++) for (let def = 0; def < 32; def++) {
+      const defender = boostedPokemon('Golem', { ability: 'Rock Head', ivs: { hp, atk: 0, def, spa: 0, spd: 0, spe: 0 } }, multipliers, Math.ceil);
+      const damage = calc.calculate(gen, mine.pokemon, defender, new calc.Move(gen, 'Waterfall'));
+      low = Math.min(low, damage.range()[0] / defender.maxHP() * 100);
+      high = Math.max(high, damage.range()[1] / defender.maxHP() * 100);
+      chance += damage.damage.filter(value => value >= defender.maxHP()).length / damage.damage.length / 1024;
+    }
+    const comparison = compareMoves(mine, [row('golem')], { multipliers });
+    assert.ok(Math.abs(comparison.rankings[0].summary.mean - chance) < 1e-10);
+    const result = calculateSpawn(mine, row('golem'), { multipliers });
+    assert.equal(result.low, low);
+    assert.equal(result.high, high);
+  }
 });
 
 test('current HP survives every clone, including doubled wild HP calibration', () => {
@@ -253,6 +313,27 @@ test('coverage preserves other ability scenarios instead of calling worst-case z
   assert.equal(cell.chance, 0); // Dazzling blocks Fake Out.
   assert.equal(cell.upper, 1);  // Strong Jaw / Wonder Skin do not.
   assert.equal(matchupState(result.matchups[0]).cannot, false);
+});
+
+test('specified 25 player IVs survive clones and the full move comparison', () => {
+  const line = 'IVs: 25 HP / 25 Atk / 25 Def / 25 SpA / 25 SpD / 25 Spe';
+  const p25 = preparePlayer(gyarados.replace('EVs:', line + '\nEVs:'));
+  const p31 = preparePlayer(gyarados);
+  assert.ok(Object.values(p25.pokemon.ivs).every(iv => iv === 25));
+  assert.deepEqual(p25.pokemon.clone().clone().ivs, p25.pokemon.ivs);
+  assert.ok(p25.pokemon.rawStats.atk < p31.pokemon.rawStats.atk);
+  const encounters = [row('golem')];
+  const lower = compareMoves(p25, encounters);
+  const higher = compareMoves(p31, encounters);
+  const chance = r => r.rankings.find(m => m.move === 'Waterfall').summary.mean;
+  assert.ok(chance(lower) < chance(higher));
+  assert.ok(Object.values(p25.pokemon.ivs).every(iv => iv === 25));
+});
+
+test('partial player IV lines preserve zero and default only unspecified stats to 31', () => {
+  const p = preparePlayer('Mew\nIVs: 0 Atk / 25 SpA\n- Psychic');
+  assert.deepEqual(p.pokemon.ivs, { hp: 31, atk: 0, def: 31, spa: 25, spd: 31, spe: 31 });
+  assert.deepEqual(p.pokemon.clone().ivs, p.pokemon.ivs);
 });
 
 test('invalid player data is rejected and omitted nature/EVs/IVs have explicit defaults', () => {

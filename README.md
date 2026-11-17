@@ -30,6 +30,15 @@ Open **Legendary-area OHKO calculator** from the search page (or `/damage.html`)
 Paste one Showdown set, click **Read set**, choose an area/method, then click **Compare all moves**.
 One run calculates every supported damaging move and ranks its unweighted average OHKO/use rate across the area.
 The best calculated move (or tied moves) is named at the end. Detailed per-spawn results are expandable.
+Player IVs are preserved from the pasted set, including 0. Only omitted player IVs default to 31.
+For example, add this line for 25 in every stat:
+
+```text
+IVs: 25 HP / 25 Atk / 25 Def / 25 SpA / 25 SpD / 25 Spe
+```
+
+Click **Read set** again after editing; the parsed player IVs appear beside the stats.
+The random 0–31 IV distribution applies only to wild Pokémon.
 You can choose a wild nature; **Serious (neutral)** is the default.
 Rarity is displayed but **never weights the average**. Every distinct species in the chosen method counts once,
 even if it occurs in multiple rarity groups. Each move is averaged separately across the same species;
@@ -47,16 +56,18 @@ In worst-ability mode the coverage table shows the worst-to-best ability scenari
 uses the worst case. A worst-case 0% is not proof that every possible ability prevents an OHKO.
 
 The listed legendary maps are included, with Cave of Origin split into land and water choices and Ancient Dungeon
-restricted to land. Wild levels come from the JSON: Ancient Dungeon is level 90; the other listed areas are level 100.
+restricted to land. All calculator encounters and the player use **level 100**, regardless of dataset levels or a pasted `Level:` line.
 Grass, Surfing and Fishing are calculated separately, not combined.
 
 ### Stat and probability assumptions
 
 - Gen 7 mechanics. Wild Pokémon have **0 EVs** and independent, uniformly random **0–31 IVs**.
-- Player multipliers: HP ×1, Attack/Special Attack ×2.5, Defence/Special Defence/Speed ×2.
-- Wild multipliers: HP/Defence/Special Defence ×2, Attack/Special Attack/Speed unchanged.
-  The wild ×1.33 offensive bonus is intentionally ignored; Foul Play results are conditional on ignoring it too.
-- Multipliers apply to normal calculated stats **after nature**, rounding down. They survive the damage library's cloning
+- Ancient Dungeon: wild HP/Attack/Defence/Special Attack/Special Defence ×1.65; Speed unchanged. No player bonuses.
+- New Moon Island, Full Moon Island, and Stark Mountain Entrance/Volcano/Chamber: the same wild stats ×1.5; Speed unchanged. No player bonuses.
+- Other areas retain the original multipliers: player HP ×1, Attack/Special Attack ×2.5, Defence/Special Defence/Speed ×2;
+  wild HP/Defence/Special Defence ×2, Attack/Special Attack/Speed unchanged.
+  Only in these other areas, the wild ×1.33 offensive bonus is intentionally ignored; Foul Play results are conditional on ignoring it too.
+- Multipliers apply to normal calculated stats **after nature**, rounding **up for wild Pokémon** and **down for the player**. They survive the damage library's cloning
   and are not stat stages (critical hits and Unaware must not remove area bonuses).
   **Validate this multiplication/rounding order against PokeNexus before treating results as exact game odds.**
 - Ordinary moves enumerate all **1,024 HP/defence IV pairs**, with normal damage rolls included.
@@ -73,7 +84,7 @@ Grass, Surfing and Fishing are calculated separately, not combined.
   Other abilities, including Disguise and Slow Start, retain their Gen 7 behavior.
 - Wild Pokémon start at full HP. **Flail and Reversal assume the player is at exactly 1 HP**; other moves use full player HP.
   Each move's assumption is shown in the supported-move list and ranking table. Low HP survives calculator clones
-  and does not change your set's other moves. Power still follows the real HP ratio (1 HP is not necessarily maximum power on very low-level Pokémon).
+  and does not change your set's other moves. Power follows the real HP ratio.
   No prior setup/status/hazards or enemy attacks. Entry weather/terrain is accounted for.
   Held Mega Stones/Primal Orbs assume the player's transformed form. Other battle-only forms should be pasted explicitly.
   Friendship is honored for Return/Frustration; absent friendship uses 255 (or 0 for Frustration-only sets).
@@ -101,6 +112,7 @@ npm test
 
 Commit `damage-worker.bundle.mjs` and `gen7-data.mjs` along with source changes when publishing static hosting updates.
 `build.mjs` generates Gen 7 metadata from pinned Showdown data and bundles the worker with esbuild.
+After editing `areas.mjs` (including adding maps), run `npm run build` and reload the calculator: the worker contains its own bundled copy of the area list.
 The game installation and original `spawns.json` are not modified. See [third-party licenses](THIRD_PARTY_LICENSES.md).
 
 ## Update the data
