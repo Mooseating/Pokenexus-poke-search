@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import calc from '@smogon/calc';
-import { areas, areaSpawns } from './areas.mjs';
+import { areas, calculatorAreas, areaSpawns } from './areas.mjs';
 import { matchupState, filterMatchups } from './matchups.mjs';
 import metadata from './gen7-data.mjs';
 import { gen, preparePlayer, boostedPokemon, playerMultipliers, wildMultipliers,
@@ -31,6 +31,41 @@ test('all requested maps and methods use level 100 and known Gen 7 species', () 
   assert.throws(() => areaSpawns(spawns, 'Ancient Dungeon — Land', 'Surfing'));
   const ranged = { ...spawns, 'Sky Pillar 1F': { ...spawns['Sky Pillar 1F'], Levels: [99, 100] } };
   assert.ok(areaSpawns(ranged, 'Sky Pillar 1F', 'Grass').every(mon => mon.level === 100));
+});
+
+test('regular maps use their maximum spawn level and no bonuses on either side', () => {
+  const data = {
+    Forest: { Levels: [5, 12], Grass: { c: ['mew', 'mew'] }, Surfing: { r: ['magikarp'] }, Fishing: {} },
+    Empty: { Levels: [1, 5], Grass: {} },
+    Unknown: { Levels: [0, 0], Grass: { c: ['mew'] } },
+    Reversed: { Levels: [20, 10], Grass: { c: ['mew'] } },
+    Missing: { Grass: { c: ['mew'] } },
+    Invalid: { Levels: [1, 101], Grass: { c: ['mew'] } },
+  };
+  const regular = calculatorAreas(data).filter(area => area.level !== undefined);
+  assert.equal(regular.length, 1);
+  const area = regular[0];
+  assert.equal(area.name, 'Forest');
+  assert.equal(area.level, 12);
+  assert.deepEqual(area.methods, ['Grass', 'Surfing']);
+  for (const side of ['player', 'wild']) {
+    assert.deepEqual(area.modifiers[side], { hp: 1, atk: 1, def: 1, spa: 1, spd: 1, spe: 1 });
+  }
+  assert.deepEqual(areaSpawns(data, 'Forest', 'Grass'), [{ name: 'mew', rarities: ['c'], level: 12 }]);
+  assert.equal(areaSpawns(data, 'Forest', 'Surfing')[0].level, 12);
+  assert.throws(() => areaSpawns(data, 'Forest', 'Fishing'));
+  assert.throws(() => areaSpawns(data, 'Unknown', 'Grass'));
+  assert.deepEqual(preparePlayer(gyarados, area.modifiers.player).pokemon.rawStats,
+    new calc.Pokemon(gen, 'Gyarados', { nature: 'Adamant', evs: { atk: 252, spd: 4, spe: 252 } }).rawStats);
+});
+
+test('regular-map discovery does not duplicate or bypass custom map profiles', () => {
+  const maps = calculatorAreas(spawns);
+  for (const area of areas) {
+    assert.equal(maps.filter(entry => entry.map === area.map).length,
+      areas.filter(entry => entry.map === area.map).length);
+    assert.equal(areaSpawns(spawns, area.name, area.methods[0])[0].level, 100);
+  }
 });
 
 test('player calculations use level 100 even when the pasted set specifies another level', () => {
@@ -129,6 +164,37 @@ test('Flail and Reversal assume 1 HP without lowering HP for other selected move
   }
   assert.deepEqual(calculateSpawn(p, target, { move: 'Waterfall' }), ordinaryBefore);
   assert.equal(ordinaryBefore.playerHP, p.pokemon.maxHP());
+});
+
+test('custom player HP applies to every move without changing the prepared set', () => {
+  const p = preparePlayer(gyarados.replace('- Waterfall\n- Tackle', '- Flail\n- Reversal\n- Waterfall'));
+  const hp = Math.floor(p.pokemon.maxHP() / 2);
+  const progress = [];
+  const comparison = compareMoves(p, [row('chansey')], { currentHP: hp }, event => progress.push(event));
+  assert.equal(comparison.complete, true);
+  assert.ok(progress.every(event => event.row.playerHP === hp));
+  assert.ok(comparison.rankings.every(result => result.hpAssumption === `${hp}/${p.pokemon.maxHP()} HP`));
+  for (const move of ['Flail', 'Reversal']) {
+    const custom = calculateSpawn(p, row('chansey'), { move, currentHP: hp });
+    const automatic = calculateSpawn(p, row('chansey'), { move });
+    assert.ok(custom.high < automatic.high);
+    assert.equal(automatic.playerHP, 1);
+  }
+  assert.equal(p.pokemon.clone().clone().curHP(), p.pokemon.maxHP());
+  assert.equal(calculateSpawn(p, row('chansey'), { move: 'Waterfall' }).playerHP, p.pokemon.maxHP());
+  assert.equal(calculateSpawn(p, row('chansey'), { move: 'Flail', currentHP: p.pokemon.maxHP() }).playerHP, p.pokemon.maxHP());
+});
+
+test('custom HP changes HP-dependent attacks and rejects invalid values', () => {
+  const p = preparePlayer('Typhlosion\nAbility: Blaze\n- Eruption');
+  const full = calculateSpawn(p, row('mew'), { currentHP: p.pokemon.maxHP() });
+  const low = calculateSpawn(p, row('mew'), { currentHP: 1 });
+  assert.equal(low.playerHP, 1);
+  assert.ok(low.high < full.high);
+  for (const currentHP of [0, -1, 1.5, NaN, Infinity, null, '1', p.pokemon.maxHP() + 1]) {
+    assert.throws(() => calculateSpawn(p, row('mew'), { currentHP }), /Player HP must/);
+    assert.throws(() => compareMoves(p, [row('mew')], { currentHP }), /Player HP must/);
+  }
 });
 
 test('PokeNexus disables all seven abilities for either side, including through clones', () => {

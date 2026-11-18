@@ -9,8 +9,8 @@
     body { max-width: 1200px; margin: auto; padding: 24px 16px; }
     a { color: #93c5fd; } p, small { color: #b8c5d6; }
     label { display: block; font-weight: 600; margin: 12px 0 6px; }
-    textarea, select, button { box-sizing: border-box; font: inherit; border-radius: 6px; padding: 10px; }
-    textarea, select { width: 100%; border: 1px solid #718096; background: #1f2937; color: inherit; }
+    textarea, input, select, button { box-sizing: border-box; font: inherit; border-radius: 6px; padding: 10px; }
+    textarea, input, select { width: 100%; border: 1px solid #718096; background: #1f2937; color: inherit; }
     textarea { min-height: 240px; font-family: monospace; }
     button { background: #2563eb; color: white; border: 0; cursor: pointer; margin: 12px 8px 0 0; }
     button:disabled { opacity: .5; cursor: default; }
@@ -43,13 +43,19 @@ Adamant Nature
         <p><small>Player IVs come from the pasted <code>IVs:</code> line. Only omitted stats default to 31; the random 0–31 IVs apply to wild Pokémon, not yours.</small></p>
         <button id="read" type="button" disabled>Read set</button>
         <p id="player-info"></p>
+        <label for="current-hp">Current player HP (optional)</label>
+        <input id="current-hp" type="number" min="1" step="1" placeholder="Automatic" aria-describedby="hp-limit hp-help">
+        <p id="hp-limit">Read your set to see its maximum HP.</p>
+        <small id="hp-help">Enter remaining HP to use it for every move. Leave blank for automatic HP: 1 HP for Flail/Reversal, full HP for other moves.</small>
         <p><strong>Moves to compare</strong></p>
         <p id="moves">Read your set to list the supported moves.</p>
-        <small>Flail and Reversal use 1 player HP; other moves use full player HP. Each move is tested separately, not used in a sequence.</small>
+        <small>Each move uses the selected HP and is tested separately, not used in a sequence.</small>
         <ul id="warnings"></ul>
       </section>
       <section aria-label="Wild encounter assumptions">
-        <label for="area">Area</label><select id="area"></select>
+        <label for="map-search">Search maps</label><input id="map-search" type="search" placeholder="Map name" autocomplete="off">
+        <label for="area">Area</label><select id="area" aria-describedby="area-info"></select>
+        <p id="area-info"><small>Loading maps…</small></p>
         <label for="method">Encounter method</label><select id="method"></select>
         <label for="wild-nature">Wild nature</label><select id="wild-nature"><option value="Serious">Serious (neutral)</option></select>
         <label for="abilities">Wild ability assumption</label>
@@ -91,12 +97,12 @@ Adamant Nature
   <details>
     <summary>Assumptions and limits</summary>
     <ul>
-      <li>Player and wild Pokémon always use level 100, overriding dataset levels and any pasted Level line.</li>
+      <li>Player level is always 100. Existing custom areas use level-100 wild Pokémon. Regular maps use their highest dataset level and no stat bonuses for either side. Maps without valid levels or encounters are omitted.</li>
       <li>Wild Pokémon have 0 EVs and independent, uniformly random IVs from 0–31. Neutral nature is the default; you can select another nature.</li>
       <li>Ancient Dungeon: wild stats ×1.65 except Speed. New Moon/Full Moon islands and Stark Mountain Entrance/Volcano/Chamber: wild stats ×1.5 except Speed. These areas give the player no stat bonuses.</li>
-      <li>Other areas: player ×2.5 Attack/Special Attack, ×2 Defence/Special Defence/Speed; wild ×2 HP/Defence/Special Defence. Only in these other areas, wild offensive ×1.33 multipliers are intentionally ignored.</li>
+      <li>Other predefined legendary areas: player ×2.5 Attack/Special Attack, ×2 Defence/Special Defence/Speed; wild ×2 HP/Defence/Special Defence. Only in these areas, wild offensive ×1.33 multipliers are intentionally ignored.</li>
       <li>Multipliers are applied after the normal stat formula and nature, rounding up for wild Pokémon and down for the player. This ordering still needs calibration against PokeNexus.</li>
-      <li>Wild Pokémon start at full HP. The player is at 1 HP for Flail/Reversal and full HP for other moves. No prior setup/status/hazards or enemy attacks. Entry weather/terrain is modeled. Held Mega Stones/Primal Orbs assume the transformed player form.</li>
+      <li>Wild Pokémon start at full HP. The optional current player HP applies to all moves; when blank, Flail/Reversal use 1 HP and other moves use full HP. No prior setup/status/hazards or enemy attacks. Entry weather/terrain is modeled. Held Mega Stones/Primal Orbs assume the transformed player form.</li>
       <li>Damage-roll OHKO chance is conditional on hitting. OHKO/use includes accuracy, but not random critical hits; forced critical moves still use their normal rules. This is not a survival or one-turn battle simulator.</li>
       <li>Ordinary moves enumerate all 1,024 HP/defence IV pairs. Moves/abilities needing additional random stats use 512 reproducible full-IV samples, labeled as estimates.</li>
       <li>Standard multi-hit moves are included. Unsupported moves or transformations are explicitly reported, not silently treated as guaranteed kills.</li>

@@ -28,6 +28,9 @@ Levels are displayed exactly as supplied by the dataset, including zero values.
 
 Open **Legendary-area OHKO calculator** from the search page (or `/damage.html`).
 Paste one Showdown set, click **Read set**, choose an area/method, then click **Compare all moves**.
+Use **Search maps** to filter all available maps by name. Regular maps have no stat bonuses on either side,
+with wild Pokémon at the highest level in that map's `Levels` range. Maps with missing/invalid levels
+(including `[0, 0]`) or no encounters are omitted. Existing custom areas keep their profiles and level-100 wild Pokémon.
 One run calculates every supported damaging move and ranks its unweighted average OHKO/use rate across the area.
 The best calculated move (or tied moves) is named at the end. Detailed per-spawn results are expandable.
 Player IVs are preserved from the pasted set, including 0. Only omitted player IVs default to 31.
@@ -38,6 +41,9 @@ IVs: 25 HP / 25 Atk / 25 Def / 25 SpA / 25 SpD / 25 Spe
 ```
 
 Click **Read set** again after editing; the parsed player IVs appear beside the stats.
+Set **Current player HP** to a whole number between 1 and the displayed maximum HP to use that remaining HP
+for every move. Leave it blank to keep automatic HP (1 HP for Flail/Reversal, full HP for other moves).
+Changing HP invalidates the previous results; compare again. Invalid HP is rejected rather than silently clamped.
 The random 0–31 IV distribution applies only to wild Pokémon.
 You can choose a wild nature; **Serious (neutral)** is the default.
 Rarity is displayed but **never weights the average**. Every distinct species in the chosen method counts once,
@@ -56,7 +62,8 @@ In worst-ability mode the coverage table shows the worst-to-best ability scenari
 uses the worst case. A worst-case 0% is not proof that every possible ability prevents an OHKO.
 
 The listed legendary maps are included, with Cave of Origin split into land and water choices and Ancient Dungeon
-restricted to land. All calculator encounters and the player use **level 100**, regardless of dataset levels or a pasted `Level:` line.
+restricted to land. These predefined custom areas use **level 100** wild Pokémon.
+Regular maps use their highest dataset level. The player always uses **level 100**, ignoring a pasted `Level:` line.
 Grass, Surfing and Fishing are calculated separately, not combined.
 
 ### Stat and probability assumptions
@@ -64,9 +71,10 @@ Grass, Surfing and Fishing are calculated separately, not combined.
 - Gen 7 mechanics. Wild Pokémon have **0 EVs** and independent, uniformly random **0–31 IVs**.
 - Ancient Dungeon: wild HP/Attack/Defence/Special Attack/Special Defence ×1.65; Speed unchanged. No player bonuses.
 - New Moon Island, Full Moon Island, and Stark Mountain Entrance/Volcano/Chamber: the same wild stats ×1.5; Speed unchanged. No player bonuses.
-- Other areas retain the original multipliers: player HP ×1, Attack/Special Attack ×2.5, Defence/Special Defence/Speed ×2;
+- Other predefined legendary areas retain the original multipliers: player HP ×1, Attack/Special Attack ×2.5, Defence/Special Defence/Speed ×2;
   wild HP/Defence/Special Defence ×2, Attack/Special Attack/Speed unchanged.
-  Only in these other areas, the wild ×1.33 offensive bonus is intentionally ignored; Foul Play results are conditional on ignoring it too.
+  Only in these legendary areas, the wild ×1.33 offensive bonus is intentionally ignored; Foul Play results are conditional on ignoring it too.
+- Regular maps: all player and wild multipliers ×1. Wild level is the map's maximum, not a probability distribution over the level range.
 - Multipliers apply to normal calculated stats **after nature**, rounding **up for wild Pokémon** and **down for the player**. They survive the damage library's cloning
   and are not stat stages (critical hits and Unaware must not remove area bonuses).
   **Validate this multiplication/rounding order against PokeNexus before treating results as exact game odds.**
@@ -82,9 +90,10 @@ Grass, Surfing and Fishing are calculated separately, not combined.
   Their names remain visible with a disabled label, but they have no calculator effects. Intimidate does not lower Attack,
   and Sturdy does not prevent OHKOs. The others mostly concern post-hit retaliation/disabling, outside outgoing OHKO odds.
   Other abilities, including Disguise and Slow Start, retain their Gen 7 behavior.
-- Wild Pokémon start at full HP. **Flail and Reversal assume the player is at exactly 1 HP**; other moves use full player HP.
-  Each move's assumption is shown in the supported-move list and ranking table. Low HP survives calculator clones
-  and does not change your set's other moves. Power follows the real HP ratio.
+- Wild Pokémon start at full HP. An explicit **Current player HP** applies to every tested move, including Flail/Reversal.
+  When left blank, **Flail and Reversal assume exactly 1 HP**; other moves use full player HP.
+  Each move's assumption is shown in the supported-move list and ranking table. Selected HP survives calculator clones
+  without changing the prepared set or maximum HP. Power follows the real HP ratio.
   No prior setup/status/hazards or enemy attacks. Entry weather/terrain is accounted for.
   Held Mega Stones/Primal Orbs assume the player's transformed form. Other battle-only forms should be pasted explicitly.
   Friendship is honored for Return/Frustration; absent friendship uses 255 (or 0 for Frustration-only sets).

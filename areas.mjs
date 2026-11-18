@@ -22,15 +22,31 @@ export const areas = [
   { name: 'Stark Mountain C', map: 'Stark Mountain Chamber', methods: ['Grass'], modifiers: moonModifiers },
 ];
 
+export function calculatorAreas(data) {
+  const customMaps = new Set(areas.map(area => area.map));
+  const regular = [];
+  for (const [map, details] of Object.entries(data)) {
+    if (customMaps.has(map)) continue;
+    const levels = details.Levels;
+    if (!Array.isArray(levels) || levels.length !== 2 ||
+        !levels.every(level => Number.isInteger(level) && level >= 1 && level <= 100) || levels[0] > levels[1]) continue;
+    const methods = ['Grass', 'Surfing', 'Fishing'].filter(method =>
+      Object.values(details[method] || {}).some(names => Array.isArray(names) && names.length > 0));
+    if (methods.length) regular.push({ name: map, map, methods, level: Math.max(...levels),
+      modifiers: { player: noBoost, wild: noBoost } });
+  }
+  return [...areas, ...regular.sort((a, b) => a.name.localeCompare(b.name))];
+}
+
 export function areaSpawns(data, areaName, method) {
-  const area = areas.find(a => a.name === areaName);
+  const area = calculatorAreas(data).find(a => a.name === areaName);
   if (!area || !area.methods.includes(method)) throw new Error('Choose a listed area and encounter method.');
   const details = data[area.map];
   if (!details) throw new Error(`Missing spawn data for ${area.map}.`);
   const bySpecies = new Map();
   for (const [rarity, names] of Object.entries(details[method] || {})) {
     for (const name of names) {
-      if (!bySpecies.has(name)) bySpecies.set(name, { name, rarities: [], level: 100 });
+      if (!bySpecies.has(name)) bySpecies.set(name, { name, rarities: [], level: area.level ?? 100 });
       if (!bySpecies.get(name).rarities.includes(rarity)) bySpecies.get(name).rarities.push(rarity);
     }
   }

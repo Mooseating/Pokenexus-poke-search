@@ -216,16 +216,25 @@ function moveAgainst(attacker, species, level, nature, ability, name, overrides,
     low, high, mode: sampled ? `${samples} full-IV samples (estimate)` : 'Exact: 1,024 HP/defence IV pairs' };
 }
 
-export function calculateSpawn(player, row, { nature = 'Serious', abilities = 'default', move = player.moves[0], multipliers = wildMultipliers } = {}) {
+function playerHP(player, move, currentHP) {
+  if (currentHP === undefined) return oneHpMoves.has(move) ? 1 : player.pokemon.maxHP();
+  if (!Number.isInteger(currentHP) || currentHP < 1 || currentHP > player.pokemon.maxHP()) {
+    throw new Error(`Player HP must be a whole number from 1 to ${player.pokemon.maxHP()}.`);
+  }
+  return currentHP;
+}
+
+export function calculateSpawn(player, row, { nature = 'Serious', abilities = 'default', move = player.moves[0], multipliers = wildMultipliers, currentHP } = {}) {
   if (!data.natures.includes(nature) || !['default', 'worst'].includes(abilities)) throw new Error('Choose a valid wild nature and ability assumption.');
   if (!Number.isInteger(row.level) || row.level < 1 || row.level > 100) throw new Error('Wild level must be 1–100.');
+  const hp = playerHP(player, move, currentHP);
   const species = data.species[calc.toID(row.name)];
   if (!species) return { ...row, error: `No Gen 7 data for ${row.name}.` };
   const candidates = abilities === 'worst' ? species.abilities : species.abilities.slice(0, 1);
   if (candidates.includes('Imposter')) return { ...row, name: species.name, error: 'Imposter transformation is not modeled; choose the default-ability assumption to calculate Limber Ditto.' };
   if (!player.moves.includes(move)) throw new Error('Choose a supported move from the pasted set.');
   const attacker = player.pokemon.clone();
-  if (oneHpMoves.has(move)) attacker.originalCurHP = 1;
+  attacker.originalCurHP = hp;
   const cases = candidates.map(ability => moveAgainst(attacker, species, row.level, nature, ability, move, player.moveOverrides[move], multipliers));
   const result = cases.reduce((a, b) => a.useChance <= b.useChance ? a : b);
   return { ...row, name: species.name, ...result,
@@ -246,6 +255,7 @@ export function compareMoves(player, encounters, options = {}, onProgress = () =
   const nature = options.nature ?? 'Serious';
   const abilities = options.abilities ?? 'default';
   if (!data.natures.includes(nature) || !['default', 'worst'].includes(abilities)) throw new Error('Invalid wild assumptions.');
+  playerHP(player, player.moves[0], options.currentHP);
   const rankings = [];
   const matchups = encounters.map(row => ({ name: row.name, level: row.level, rarities: row.rarities, moves: [] }));
   let done = 0;
@@ -254,7 +264,7 @@ export function compareMoves(player, encounters, options = {}, onProgress = () =
     const rows = [];
     for (const [index, encounter] of encounters.entries()) {
       let row;
-      try { row = { ...calculateSpawn(player, encounter, { nature, abilities, move, multipliers: options.multipliers }), move }; }
+      try { row = { ...calculateSpawn(player, encounter, { nature, abilities, move, multipliers: options.multipliers, currentHP: options.currentHP }), move }; }
       catch (error) { row = { ...encounter, move, error: error.message }; }
       rows.push(row);
       matchups[index].name = row.name;
@@ -263,7 +273,9 @@ export function compareMoves(player, encounters, options = {}, onProgress = () =
         estimated: Boolean(row.estimated), error: row.error });
       onProgress({ row, move, done: ++done, total });
     }
-    rankings.push({ move, summary: summarize(rows), hpAssumption: oneHpMoves.has(move) ? '1 HP' : 'full HP',
+    const hpAssumption = options.currentHP === undefined ? (oneHpMoves.has(move) ? '1 HP' : 'full HP')
+      : `${options.currentHP}/${player.pokemon.maxHP()} HP`;
+    rankings.push({ move, summary: summarize(rows), hpAssumption,
       estimated: rows.some(row => row.estimated) });
   }
   rankings.sort((a, b) => b.summary.lower - a.summary.lower || a.move.localeCompare(b.move));
